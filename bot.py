@@ -10,8 +10,6 @@ import os
 import asyncio
 import aiohttp
 from datetime import datetime
-import threading
-from aiohttp import web
 
 # Загружаем переменные окружения из .env файла
 load_dotenv()
@@ -391,16 +389,8 @@ async def on_shutdown(dp):
     await bot.delete_webhook()
     logger.info("Webhook удален")
 
-# --- Health check endpoint ---
-async def healthz(request):
-    return web.Response(text="OK")
-
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 10000))
-    # Создаем aiohttp приложение и добавляем healthz endpoint
-    app = web.Application()
-    app.router.add_get('/healthz', healthz)
-    # Запускаем aiogram executor с кастомным app
     executor.start_webhook(
         dispatcher=dp,
         webhook_path=WEBHOOK_PATH,
@@ -408,6 +398,5 @@ if __name__ == '__main__':
         on_shutdown=on_shutdown,
         skip_updates=True,
         host='0.0.0.0',
-        port=port,
-        app=app
+        port=port
     )
