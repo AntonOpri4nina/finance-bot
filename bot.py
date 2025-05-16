@@ -140,7 +140,7 @@ async def cmd_start(message: types.Message):
     logger.info(f"User {user.id} started the bot")
 
 @dp.callback_query_handler(lambda c: True)
-async def callback_handler(callback_query: types.CallbackQuery):
+async def callback_handler(callback_query: types.CallbackQuery, state: FSMContext):
     data = callback_query.data
     logger.info(f"Received callback_data: {data}")
     mfo_info = {
@@ -162,11 +162,21 @@ async def callback_handler(callback_query: types.CallbackQuery):
         'finmoll': 'https://trk.ppdu.ru/click/wQwFZLCW?erid=2SDnjd4YnrC',
     }
     try:
+        # Получаем id предыдущего сообщения, если есть
+        data_state = await state.get_data()
+        last_bot_message_id = data_state.get('last_bot_message_id')
+        # Удаляем предыдущее сообщение, если оно есть
+        if last_bot_message_id:
+            try:
+                await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=last_bot_message_id)
+            except Exception as e:
+                logger.error(f'Ошибка при удалении предыдущего сообщения: {e}')
         if data == 'start_menu':
-            await callback_query.message.edit_text(
+            msg = await callback_query.message.edit_text(
                 "Выбери финпродукт, который тебя интересует:",
                 reply_markup=get_main_menu()
             )
+            await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'mfo_150k':
             # Удаляем сообщение с фото, если оно есть
             try:
@@ -174,13 +184,14 @@ async def callback_handler(callback_query: types.CallbackQuery):
             except Exception as e:
                 logger.error(f'Ошибка при удалении сообщения с фото: {e}')
             # Отправляем новое сообщение с меню МФО
-            await bot.send_message(
+            msg = await bot.send_message(
                 chat_id=callback_query.message.chat.id,
                 text="💫 Вы выбрали займ от микрофинансовой организации.\n\n"
                      "У нас есть быстрые займы под низкий процент! 🚀\n\n"
                      "Выберите подходящую МФО:",
                 reply_markup=get_mfo_menu()
             )
+            await state.update_data(last_bot_message_id=msg.message_id)
         elif data.startswith('mfo_'):
             mfo_name = data[len('mfo_'):]
             if mfo_name in mfo_info:
@@ -316,15 +327,16 @@ async def callback_handler(callback_query: types.CallbackQuery):
                     image_path = path
                     break
             if not image_path:
-                await callback_query.message.answer("Извините, картинка временно недоступна.")
+                msg = await callback_query.message.answer("Извините, картинка временно недоступна.")
             else:
                 with open(image_path, 'rb') as photo:
-                    await bot.send_photo(
+                    msg = await bot.send_photo(
                         chat_id=callback_query.message.chat.id,
                         photo=photo,
                         caption=f'Получите займ в {mfo_info[mfo_name][0]}',
                         reply_markup=keyboard
                     )
+            await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'back_to_main':
             await callback_query.message.edit_text(
                 "Выбери финпродукт, который тебя интересует:",
