@@ -25,6 +25,9 @@ if not API_TOKEN:
     logger.error("API_TOKEN не найден в .env файле!")
     exit(1)
 
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # задаём в Render переменную окружения WEBHOOK_URL
+
 logger.info("Starting bot initialization...")
 
 # Инициализация бота и диспетчера
@@ -332,21 +335,22 @@ async def callback_handler(callback_query: types.CallbackQuery):
         await callback_query.message.answer("Произошла ошибка. Пожалуйста, попробуйте еще раз или начните сначала с помощью команды /start")
 
 async def on_startup(dp):
-    logger.info("Bot started")
-    # Здесь можно добавить дополнительную инициализацию при запуске
+    if WEBHOOK_URL:
+        webhook_url = WEBHOOK_URL + WEBHOOK_PATH
+        await bot.set_webhook(webhook_url)
+        logger.info(f"Webhook set: {webhook_url}")
+    else:
+        logger.error("WEBHOOK_URL не задан! Укажите переменную окружения WEBHOOK_URL.")
 
 async def on_shutdown(dp):
-    logger.info("Bot stopped")
-    # Здесь можно добавить очистку ресурсов при остановке
+    await bot.delete_webhook()
+    logger.info("Webhook deleted")
 
 if __name__ == '__main__':
-    # Получаем порт из переменных окружения или используем порт по умолчанию
-    port = int(os.getenv('PORT', 8080))
-    
-    # Запускаем бота с привязкой к порту
+    port = int(os.getenv('PORT', 10000))
     executor.start_webhook(
         dispatcher=dp,
-        webhook_path='/',
+        webhook_path=WEBHOOK_PATH,
         on_startup=on_startup,
         on_shutdown=on_shutdown,
         skip_updates=True,
