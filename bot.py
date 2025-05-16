@@ -301,18 +301,23 @@ async def callback_handler(callback_query: types.CallbackQuery):
             keyboard = InlineKeyboardMarkup()
             keyboard.add(InlineKeyboardButton(text='✅ ЗАБРАТЬ ДЕНЬГИ НА КАРТУ', url=link))
             keyboard.add(InlineKeyboardButton(text='◀️ Назад к списку МФО', callback_data='mfo_150k'))
-            await callback_query.message.edit_text(
-                text='Загрузка...',
-                reply_markup=keyboard
-            )
-            # Отправляем картинку
-            with open(f'images/{mfo_name}.jpg', 'rb') as photo:
-                await bot.send_photo(
-                    chat_id=callback_query.message.chat.id,
-                    photo=photo,
-                    caption=f'Получите займ в {mfo_info[mfo_name][0]}',
-                    reply_markup=keyboard
-                )
+            image_extensions = ['jpg', 'jpeg', 'png']
+            image_path = None
+            for ext in image_extensions:
+                path = f'images/{mfo_name}.{ext}'
+                if os.path.exists(path):
+                    image_path = path
+                    break
+            if not image_path:
+                await callback_query.message.answer("Извините, картинка временно недоступна.")
+            else:
+                with open(image_path, 'rb') as photo:
+                    await bot.send_photo(
+                        chat_id=callback_query.message.chat.id,
+                        photo=photo,
+                        caption=f'Получите займ в {mfo_info[mfo_name][0]}',
+                        reply_markup=keyboard
+                    )
         elif data == 'back_to_main':
             await callback_query.message.edit_text(
                 "Выбери финпродукт, который тебя интересует:",
