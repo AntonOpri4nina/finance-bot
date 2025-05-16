@@ -331,7 +331,25 @@ async def callback_handler(callback_query: types.CallbackQuery):
         logger.error(f"Error in callback handler: {e}")
         await callback_query.message.answer("Произошла ошибка. Пожалуйста, попробуйте еще раз или начните сначала с помощью команды /start")
 
+async def on_startup(dp):
+    logger.info("Bot started")
+    # Здесь можно добавить дополнительную инициализацию при запуске
+
+async def on_shutdown(dp):
+    logger.info("Bot stopped")
+    # Здесь можно добавить очистку ресурсов при остановке
+
 if __name__ == '__main__':
-    logger.info("Starting bot polling...")
-    executor.start_polling(dp, skip_updates=True)
-    logger.info("Bot polling started")
+    # Получаем порт из переменных окружения или используем порт по умолчанию
+    port = int(os.getenv('PORT', 8080))
+    
+    # Запускаем бота с привязкой к порту
+    executor.start_webhook(
+        dispatcher=dp,
+        webhook_path='/',
+        on_startup=on_startup,
+        on_shutdown=on_shutdown,
+        skip_updates=True,
+        host='0.0.0.0',
+        port=port
+    )
