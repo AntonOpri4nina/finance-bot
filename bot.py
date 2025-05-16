@@ -7,6 +7,11 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils import executor
 from dotenv import load_dotenv
 import os
+import asyncio
+import aiohttp
+from datetime import datetime
+import threading
+from aiohttp import web
 
 # Загружаем переменные окружения из .env файла
 load_dotenv()
@@ -34,6 +39,45 @@ logger.info("Starting bot initialization...")
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
+
+# Флаг для отслеживания состояния бота
+bot_is_running = False
+
+async def check_webhook_health():
+    """Проверяет состояние вебхука и переустанавливает его при необходимости"""
+    global bot_is_running
+    while True:
+        try:
+            if not bot_is_running:
+                logger.warning("Бот не работает, пытаемся перезапустить...")
+                await setup_webhook()
+            else:
+                # Проверяем состояние вебхука
+                webhook_info = await bot.get_webhook_info()
+                if not webhook_info.url or webhook_info.url != WEBHOOK_URL + WEBHOOK_PATH:
+                    logger.warning(f"Вебхук не установлен или неверный URL: {webhook_info.url}")
+                    await setup_webhook()
+            
+            await asyncio.sleep(300)  # Проверка каждые 5 минут
+        except Exception as e:
+            logger.error(f"Ошибка при проверке состояния вебхука: {e}")
+            await asyncio.sleep(60)  # При ошибке ждем минуту перед следующей попыткой
+
+async def setup_webhook():
+    """Устанавливает вебхук"""
+    global bot_is_running
+    try:
+        if WEBHOOK_URL:
+            webhook_url = WEBHOOK_URL + WEBHOOK_PATH
+            await bot.set_webhook(webhook_url)
+            logger.info(f"Webhook установлен: {webhook_url}")
+            bot_is_running = True
+        else:
+            logger.error("WEBHOOK_URL не задан! Укажите переменную окружения WEBHOOK_URL.")
+            bot_is_running = False
+    except Exception as e:
+        logger.error(f"Ошибка при установке вебхука: {e}")
+        bot_is_running = False
 
 logger.info("Bot initialized successfully")
 
@@ -335,19 +379,28 @@ async def callback_handler(callback_query: types.CallbackQuery):
         await callback_query.message.answer("Произошла ошибка. Пожалуйста, попробуйте еще раз или начните сначала с помощью команды /start")
 
 async def on_startup(dp):
-    if WEBHOOK_URL:
-        webhook_url = WEBHOOK_URL + WEBHOOK_PATH
-        await bot.set_webhook(webhook_url)
-        logger.info(f"Webhook set: {webhook_url}")
-    else:
-        logger.error("WEBHOOK_URL не задан! Укажите переменную окружения WEBHOOK_URL.")
+    """Действия при запуске бота"""
+    await setup_webhook()
+    # Запускаем проверку состояния вебхука в фоновом режиме
+    asyncio.create_task(check_webhook_health())
 
 async def on_shutdown(dp):
+    """Действия при остановке бота"""
+    global bot_is_running
+    bot_is_running = False
     await bot.delete_webhook()
-    logger.info("Webhook deleted")
+    logger.info("Webhook удален")
+
+# --- Health check endpoint ---
+async def healthz(request):
+    return web.Response(text="OK")
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 10000))
+    # Создаем aiohttp приложение и добавляем healthz endpoint
+    app = web.Application()
+    app.router.add_get('/healthz', healthz)
+    # Запускаем aiogram executor с кастомным app
     executor.start_webhook(
         dispatcher=dp,
         webhook_path=WEBHOOK_PATH,
@@ -355,5 +408,6 @@ if __name__ == '__main__':
         on_shutdown=on_shutdown,
         skip_updates=True,
         host='0.0.0.0',
-        port=port
+        port=port,
+        app=app
     )
