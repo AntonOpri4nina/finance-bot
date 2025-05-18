@@ -172,3 +172,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# === Ваши файлы статистики и базы данных ===
+stats.db
+stats_log.csv
