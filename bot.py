@@ -3,13 +3,14 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 from dotenv import load_dotenv
 import os
 import asyncio
 import aiohttp
 from datetime import datetime
+from db import create_table, add_stat_row
 
 # Загружаем переменные окружения из .env файла
 load_dotenv()
@@ -40,6 +41,10 @@ dp = Dispatcher(bot, storage=storage)
 
 # Флаг для отслеживания состояния бота
 bot_is_running = False
+
+create_table()
+
+ADMIN_IDS = [1006600764, 130155491]  # Список Telegram user_id админов
 
 async def check_webhook_health():
     """Проверяет состояние вебхука и переустанавливает его при необходимости"""
@@ -90,7 +95,6 @@ def get_main_menu():
     keyboard.add(InlineKeyboardButton("💸 Без залога до 150к", callback_data="mfo_150k"))
     keyboard.add(InlineKeyboardButton("🚗 Под ПТС до 5млн", callback_data="pts_5m"))
     keyboard.add(InlineKeyboardButton("🏠 Под недвижимость до 50м", callback_data="pledge_50m"))
-    keyboard.add(InlineKeyboardButton("❓ Помощь", callback_data="help"))
     keyboard.add(InlineKeyboardButton("◀️ Назад", callback_data="back_to_start"))
     return keyboard
 
@@ -114,7 +118,10 @@ def get_loan_keyboard(mfo_name: str):
 
 def get_pts_keyboard():
     keyboard = InlineKeyboardMarkup()
-    keyboard.add(InlineKeyboardButton("📝 Получить кредит", callback_data="get_pts_loan"))
+    keyboard.add(InlineKeyboardButton("⚡️ Драйв от 2% в мес.", callback_data="pts_drive"))
+    keyboard.add(InlineKeyboardButton("⚡️ Креди от 3% в мес.", callback_data="pts_kredi"))
+    keyboard.add(InlineKeyboardButton("⚡️ КэшДрайв от 1,7% в мес.", callback_data="pts_cashdrive"))
+    keyboard.add(InlineKeyboardButton("⚡️ Совком от 1,5% в мес.", callback_data="pts_sovcom"))
     keyboard.add(InlineKeyboardButton("◀️ Назад", callback_data="back_to_main"))
     return keyboard
 
@@ -139,6 +146,7 @@ async def cmd_start(message: types.Message):
     )
     await message.answer(welcome_message, reply_markup=get_start_menu())
     logger.info(f"User {user.id} started the bot")
+    add_stat_row(user.id, user.full_name, user.username, 'start')
 
 @dp.callback_query_handler(lambda c: True)
 async def callback_handler(callback_query: types.CallbackQuery, state: FSMContext):
@@ -180,6 +188,7 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
             )
             await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'mfo_150k':
+            add_stat_row(callback_query.from_user.id, callback_query.from_user.full_name, callback_query.from_user.username, 'mfo_150k')
             # Удаляем сообщение с фото, если оно есть
             try:
                 await callback_query.message.delete()
@@ -360,6 +369,7 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
             )
             await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'pts_5m':
+            add_stat_row(callback_query.from_user.id, callback_query.from_user.full_name, callback_query.from_user.username, 'pts_5m')
             pts_keyboard = InlineKeyboardMarkup()
             pts_keyboard.add(InlineKeyboardButton("⚡️ Драйв от 2% в мес.", callback_data="pts_drive"))
             pts_keyboard.add(InlineKeyboardButton("⚡️ Креди от 3% в мес.", callback_data="pts_kredi"))
@@ -378,6 +388,7 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
             )
             await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'pledge_50m':
+            add_stat_row(callback_query.from_user.id, callback_query.from_user.full_name, callback_query.from_user.username, 'pledge_50m')
             msg = await bot.send_message(
                 chat_id=callback_query.message.chat.id,
                 text="🏠 Кредит под залог недвижимости до 50 000 000 ₽\n\n"
@@ -399,8 +410,7 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                      "3️⃣ Загрузите необходимые документы\n"
                      "4️⃣ Получите решение\n"
                      "5️⃣ Подпишите договор\n\n"
-                     "💬 По всем вопросам обращайтесь в поддержку: @support",
-                reply_markup=get_main_menu()
+                     "💬 По всем вопросам обращайтесь в поддержку: @support"
             )
             await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'back_to_start':
@@ -522,10 +532,54 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                 parse_mode='HTML'
             )
             await state.update_data(last_bot_message_id=msg.message_id)
+        elif data.startswith("get_loan_pts_"):
+            pts_links = {
+                "get_loan_pts_drive": "https://slds.pro/az72w",
+                "get_loan_pts_kredi": "https://slds.pro/vcdj7",
+                "get_loan_pts_cashdrive": "https://slds.pro/hxhbv",
+                "get_loan_pts_sovcom": "https://trk.ppdu.ru/click/ELxQqqRu?erid=Kra23xE7N"
+            }
+            url = pts_links.get(data)
+            action_keyboard = InlineKeyboardMarkup()
+            if url:
+                action_keyboard.add(InlineKeyboardButton("✅ ПОЛУЧИТЬ ДЕНЬГИ ЗА ПОЛЧАСА!", url=url))
+            else:
+                action_keyboard.add(InlineKeyboardButton("✅ ПОЛУЧИТЬ ДЕНЬГИ ЗА ПОЛЧАСА!", callback_data="none"))
+            action_keyboard.add(InlineKeyboardButton("◀️ Назад к списку кредиторов", callback_data="pts_5m"))
+            msg = await bot.send_message(
+                chat_id=callback_query.message.chat.id,
+                text="Здесь будет картинка",
+                reply_markup=action_keyboard
+            )
+            await state.update_data(last_bot_message_id=msg.message_id)
         await callback_query.answer()
     except Exception as e:
         logger.error(f"Error in callback handler: {e}")
         await callback_query.message.answer("Произошла ошибка. Пожалуйста, попробуйте еще раз или начните сначала с помощью команды /start")
+
+@dp.message_handler(commands=['help'])
+async def help_command_handler(message: types.Message):
+    await message.answer(
+        "❓ Помощь\n\n"
+        "📝 Как получить финансирование:\n\n"
+        "1️⃣ Выберите подходящий продукт\n"
+        "2️⃣ Заполните анкету\n"
+        "3️⃣ Загрузите необходимые документы\n"
+        "4️⃣ Получите решение\n"
+        "5️⃣ Подпишите договор\n\n"
+        "💬 По всем вопросам обращайтесь в поддержку: @support"
+    )
+
+@dp.message_handler(commands=['getstats'])
+async def send_stats_file(message: types.Message):
+    if message.from_user.id in ADMIN_IDS:
+        try:
+            with open('stats_log.csv', 'rb') as f:
+                await message.answer_document(types.InputFile(f, filename='stats_log.csv'))
+        except Exception as e:
+            await message.reply(f'Ошибка при отправке файла: {e}')
+    else:
+        await message.reply('Нет доступа')
 
 async def on_startup(dp):
     """Действия при запуске бота"""
