@@ -11,6 +11,7 @@ import asyncio
 import aiohttp
 from datetime import datetime
 from db import create_table, add_stat_row
+import sqlite3
 
 # Загружаем переменные окружения из .env файла
 load_dotenv()
@@ -158,6 +159,11 @@ def get_pledge_keyboard():
 async def cmd_start(message: types.Message):
     user = message.from_user
     full_name = user.full_name or f"{user.first_name or ''} {user.last_name or ''}".strip()
+    
+    # Получаем source из аргументов команды
+    args = message.get_args()
+    source = args if args else 'direct'
+    
     welcome_message = (
         f"Привет, {full_name}. Вы находитесь в Финансовом Агрегаторе.\n\n"
         "Мы собрали для вас лучшие финансовые решения с наиболее выгодными условиями, чтобы помочь вам в важных моментах. В нашем ассортименте:\n\n"
@@ -167,8 +173,8 @@ async def cmd_start(message: types.Message):
         "Изучите доступные предложения и выберите то, что соответствует вашим потребностям. Мы здесь, чтобы помочь вам сделать правильный выбор!"
     )
     await message.answer(welcome_message, reply_markup=get_start_menu())
-    logger.info(f"User {user.id} started the bot")
-    add_stat_row(user.id, user.full_name, user.username, 'start')
+    logger.info(f"User {user.id} started the bot from source: {source}")
+    add_stat_row(user.id, user.full_name, user.username, 'start', source)
 
 @dp.callback_query_handler(lambda c: True)
 async def callback_handler(callback_query: types.CallbackQuery, state: FSMContext):
@@ -286,7 +292,7 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                                  "🥇 Первый заём бесплатно (до 7 дней)\n\n"
                                  "<b>Преимущества:</b>\n"
                                  "💰 Выгодные условия\n"
-                                 "�� Только паспорт для оформления\n"
+                                 "🪪 Только паспорт для оформления\n"
                                  "⚡️ До 8 минут — и деньги уже на карте!\n\n"
                                  "<b>Требования к заёмщику:</b>\n"
                                  "🔞 Возраст: 18–65 лет\n"
@@ -454,7 +460,7 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                             "• Получение кредита день в день\n"
                             "• Кредит на карту или курьером\n"
                             "• Автомобиль остается у вас\n\n"
-                            "🚗 <b>Требования к ТС:</b>\n"
+                            "🏷️ <b>Требования к ТС:</b>\n"
                             "• Не старше 24 лет включительно\n"
                             "• Технически исправное\n"
                             "• Не должно находиться в залоге, участвовать в программе автокредитования\n\n"
@@ -661,6 +667,51 @@ async def send_db_file(message: types.Message):
                 await message.answer_document(types.InputFile(f, filename='stats.db'))
         except Exception as e:
             await message.reply(f'Ошибка при отправке файла: {e}')
+    else:
+        await message.reply('Нет доступа')
+
+@dp.message_handler(commands=['sourcestats'])
+async def send_source_stats(message: types.Message):
+    if message.from_user.id in ADMIN_IDS:
+        try:
+            conn = sqlite3.connect('stats.db')
+            c = conn.cursor()
+            
+            # Получаем общую статистику по источникам
+            c.execute('''
+                SELECT source, 
+                       COUNT(*) as total_users,
+                       COUNT(DISTINCT user_id) as unique_users,
+                       SUM(CASE WHEN action = 'get_loan_' THEN 1 ELSE 0 END) as conversions
+                FROM stats_log 
+                GROUP BY source
+                ORDER BY total_users DESC
+            ''')
+            
+            stats = c.fetchall()
+            conn.close()
+            
+            if not stats:
+                await message.reply("Статистика по источникам пока пуста.")
+                return
+                
+            # Формируем сообщение со статистикой
+            stats_message = "📊 <b>Статистика по источникам трафика:</b>\n\n"
+            
+            for source, total, unique, conversions in stats:
+                conversion_rate = (conversions / total * 100) if total > 0 else 0
+                stats_message += (
+                    f"<b>Источник:</b> {source}\n"
+                    f"👥 Всего переходов: {total}\n"
+                    f"👤 Уникальных пользователей: {unique}\n"
+                    f"✅ Конверсии: {conversions}\n"
+                    f"📈 Конверсия: {conversion_rate:.1f}%\n\n"
+                )
+            
+            await message.reply(stats_message, parse_mode='HTML')
+            
+        except Exception as e:
+            await message.reply(f'Ошибка при получении статистики: {e}')
     else:
         await message.reply('Нет доступа')
 
