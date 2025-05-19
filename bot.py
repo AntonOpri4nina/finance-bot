@@ -46,6 +46,28 @@ create_table()
 
 ADMIN_IDS = [1006600764, 130155491]  # Список Telegram user_id админов
 
+# Информация о МФО
+mfo_info = {
+    'express': ("ЭкспрессДеньги", "0%", "30 000 ₽", "7 дней"),
+    'urgent': ("Срочноденьги", "0%", "30 000 ₽", "7 дней"),
+    'amoney': ("А Деньги", "0%", "30 000 ₽", "7 дней"),
+    'rocket': ("РокетМэн", "0,6%", "30 000 ₽", "7 дней"),
+    'nebus': ("Небус", "от 0,48%", "30 000 ₽", "7 дней"),
+    'dobro': ("Доброзайм", "от 0%", "30 000 ₽", "7 дней"),
+    'finmoll': ("ФИНМОЛЛ", "от 0,59%", "30 000 ₽", "7 дней")
+}
+
+# Ссылки на МФО
+mfo_links = {
+    'express': 'https://clck.ru/3M6gGy',
+    'urgent': 'https://trk.ppdu.ru/click/XTQAqAhA?erid=2SDnjc7jaxR',
+    'amoney': 'https://trk.ppdu.ru/click/Z2nIYcGH?erid=LjN8KSUm6',
+    'rocket': 'https://trk.ppdu.ru/click/Zm2xFzSS?erid=2SDnjcXCda4',
+    'nebus': 'https://trk.ppdu.ru/click/jOAljKvs?erid=2SDnjck7R1e',
+    'dobro': 'https://trk.ppdu.ru/click/zub20YhE?erid=LjN8JvgqW',
+    'finmoll': 'https://trk.ppdu.ru/click/wQwFZLCW?erid=2SDnjd4YnrC',
+}
+
 async def check_webhook_health():
     """Проверяет состояние вебхука и переустанавливает его при необходимости"""
     global bot_is_running
@@ -152,34 +174,35 @@ async def cmd_start(message: types.Message):
 async def callback_handler(callback_query: types.CallbackQuery, state: FSMContext):
     data = callback_query.data
     logger.info(f"Received callback_data: {data}")
-    mfo_info = {
-        'express': ("ЭкспрессДеньги", "0%", "30 000 ₽", "7 дней"),
-        'urgent': ("Срочноденьги", "0%", "30 000 ₽", "7 дней"),
-        'amoney': ("А Деньги", "0%", "30 000 ₽", "7 дней"),
-        'rocket': ("РокетМэн", "0,6%", "30 000 ₽", "7 дней"),
-        'nebus': ("Небус", "от 0,48%", "30 000 ₽", "7 дней"),
-        'dobro': ("Доброзайм", "от 0%", "30 000 ₽", "7 дней"),
-        'finmoll': ("ФИНМОЛЛ", "от 0,59%", "30 000 ₽", "7 дней")
-    }
-    mfo_links = {
-        'express': 'https://clck.ru/3M6gGy',
-        'urgent': 'https://trk.ppdu.ru/click/XTQAqAhA?erid=2SDnjc7jaxR',
-        'amoney': 'https://trk.ppdu.ru/click/Z2nIYcGH?erid=LjN8KSUm6',
-        'rocket': 'https://trk.ppdu.ru/click/Zm2xFzSS?erid=2SDnjcXCda4',
-        'nebus': 'https://trk.ppdu.ru/click/jOAljKvs?erid=2SDnjck7R1e',
-        'dobro': 'https://trk.ppdu.ru/click/zub20YhE?erid=LjN8JvgqW',
-        'finmoll': 'https://trk.ppdu.ru/click/wQwFZLCW?erid=2SDnjd4YnrC',
-    }
+    logger.info(f"Processing callback for user {callback_query.from_user.id}")
+    
     try:
         # Получаем id предыдущего сообщения, если есть
         data_state = await state.get_data()
         last_bot_message_id = data_state.get('last_bot_message_id')
+        logger.info(f"Last message ID: {last_bot_message_id}")
+        
         # Удаляем предыдущее сообщение, если оно есть
         if last_bot_message_id:
             try:
                 await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=last_bot_message_id)
+                logger.info(f"Deleted previous message {last_bot_message_id}")
             except Exception as e:
-                logger.error(f'Ошибка при удалении предыдущего сообщения: {e}')
+                if "Message to delete not found" in str(e):
+                    logger.info("Previous message was already deleted")
+                else:
+                    logger.error(f'Ошибка при удалении предыдущего сообщения: {e}')
+        
+        # Удаляем текущее сообщение с кнопками
+        try:
+            await callback_query.message.delete()
+            logger.info("Deleted current message with buttons")
+        except Exception as e:
+            if "Message to delete not found" in str(e):
+                logger.info("Current message was already deleted")
+            else:
+                logger.error(f'Ошибка при удалении текущего сообщения: {e}')
+
         if data == 'start_menu':
             msg = await bot.send_message(
                 chat_id=callback_query.message.chat.id,
@@ -189,11 +212,6 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
             await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'mfo_150k':
             add_stat_row(callback_query.from_user.id, callback_query.from_user.full_name, callback_query.from_user.username, 'mfo_150k')
-            # Удаляем сообщение с фото, если оно есть
-            try:
-                await callback_query.message.delete()
-            except Exception as e:
-                logger.error(f'Ошибка при удалении сообщения с фото: {e}')
             # Отправляем новое сообщение с меню МФО
             msg = await bot.send_message(
                 chat_id=callback_query.message.chat.id,
@@ -423,10 +441,12 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                 )
                 await state.update_data(last_bot_message_id=msg.message_id)
         elif data.startswith('get_loan_'):
-            mfo_name = data.split('_')[2]
+            mfo_name = data.replace('get_loan_', '')  # Получаем полное имя оператора
+            logger.info(f"Processing get_loan_ callback for {mfo_name}")
             # Для ПТС-операторов показываем картинку, кнопку с внешней ссылкой и кнопку "Назад к списку кредиторов"
             if mfo_name in ["pts_drive", "pts_kredi", "pts_cashdrive", "pts_sovcom"]:
                 try:
+                    logger.info(f"Processing PTS operator: {mfo_name}")
                     pts_links = {
                         "pts_drive": "https://slds.pro/az72w",
                         "pts_kredi": "https://slds.pro/vcdj7",
@@ -438,6 +458,7 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                         logger.error(f"URL not found for {mfo_name}")
                         return
 
+                    logger.info(f"Creating keyboard for {mfo_name} with URL: {url}")
                     action_keyboard = InlineKeyboardMarkup()
                     action_keyboard.add(InlineKeyboardButton("✅ ПОЛУЧИТЬ ДЕНЬГИ ЗА ПОЛЧАСА!", url=url))
                     action_keyboard.add(InlineKeyboardButton("◀️ Назад к списку кредиторов", callback_data="pts_5m"))
@@ -448,10 +469,12 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                         path = f'images/{mfo_name}.{ext}'
                         if os.path.exists(path):
                             image_path = path
+                            logger.info(f"Found image at {path}")
                             break
 
                     try:
                         if image_path:
+                            logger.info(f"Sending photo for {mfo_name}")
                             with open(image_path, 'rb') as photo:
                                 msg = await bot.send_photo(
                                     chat_id=callback_query.message.chat.id,
@@ -460,16 +483,19 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                                     reply_markup=action_keyboard
                                 )
                         else:
+                            logger.info(f"No image found for {mfo_name}, sending text message")
                             msg = await bot.send_message(
                                 chat_id=callback_query.message.chat.id,
                                 text=f'Получите займ в {mfo_name.replace("pts_", "").capitalize()}',
                                 reply_markup=action_keyboard
                             )
+                        logger.info(f"Message sent successfully for {mfo_name}")
                         await state.update_data(last_bot_message_id=msg.message_id)
                     except Exception as e:
                         logger.error(f"Error sending message/photo for {mfo_name}: {e}")
                         # Пробуем отправить хотя бы текстовое сообщение
                         try:
+                            logger.info(f"Attempting to send fallback message for {mfo_name}")
                             msg = await bot.send_message(
                                 chat_id=callback_query.message.chat.id,
                                 text=f'Получите займ в {mfo_name.replace("pts_", "").capitalize()}',
@@ -516,13 +542,10 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
             )
             await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'pts_5m':
+            logger.info("Processing pts_5m callback")
             add_stat_row(callback_query.from_user.id, callback_query.from_user.full_name, callback_query.from_user.username, 'pts_5m')
-            # Удаляем сообщение с фото, если оно есть
-            try:
-                await callback_query.message.delete()
-            except Exception as e:
-                logger.error(f'Ошибка при удалении сообщения с фото: {e}')
             # Отправляем новое сообщение с меню ПТС
+            logger.info("Sending PTS menu message")
             msg = await bot.send_message(
                 chat_id=callback_query.message.chat.id,
                 text="🚀 Займы под залог ПТС – с минимальными переплатами от лицензированных кредиторов!\n\n"
@@ -533,6 +556,7 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                      "Выбирайте надежного кредитора из нашего тщательно отобранного списка и решайте финансовые вопросы без риска!",
                 reply_markup=get_pts_keyboard()
             )
+            logger.info(f"Sent PTS menu message with ID: {msg.message_id}")
             await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'pledge_50m':
             add_stat_row(callback_query.from_user.id, callback_query.from_user.full_name, callback_query.from_user.username, 'pledge_50m')
