@@ -95,7 +95,6 @@ def get_main_menu():
     keyboard.add(InlineKeyboardButton("💸 Без залога до 150к", callback_data="mfo_150k"))
     keyboard.add(InlineKeyboardButton("🚗 Под ПТС до 5млн", callback_data="pts_5m"))
     keyboard.add(InlineKeyboardButton("🏠 Под недвижимость до 50м", callback_data="pledge_50m"))
-    keyboard.add(InlineKeyboardButton("ℹ️ Меню", callback_data="help"))
     keyboard.add(InlineKeyboardButton("◀️ Назад", callback_data="back_to_start"))
     return keyboard
 
@@ -405,7 +404,7 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
             )
             await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'help':
-            await message.answer(
+            await callback_query.message.answer(
                 "ℹ️ Я бот для оформления займов под залог недвижимости. Вот что я могу для вас сделать:\n\n"
                 "🔹 Оформить заявку – подберу лучшие условия от частных инвесторов\n"
                 "🔹 Рассчитать сумму – помогу оценить вашу недвижимость и возможный займ\n"
