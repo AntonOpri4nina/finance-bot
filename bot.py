@@ -389,15 +389,18 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
             await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'pledge_50m':
             add_stat_row(callback_query.from_user.id, callback_query.from_user.full_name, callback_query.from_user.username, 'pledge_50m')
+            keyboard = InlineKeyboardMarkup()
+            keyboard.add(InlineKeyboardButton("Оформить займ", url="https://t.me/Odobrenie41Bot"))
+            keyboard.add(InlineKeyboardButton("◀️ Назад", callback_data="back_to_main"))
             msg = await bot.send_message(
                 chat_id=callback_query.message.chat.id,
-                text="🏠 Кредит под залог недвижимости до 50 000 000 ₽\n\n"
-                     "✨ Крупная сумма\n"
-                     "📅 Срок до 20 лет\n"
-                     "💫 Низкая процентная ставка\n"
-                     "💵 Выплаты от 50 000 ₽/мес\n\n"
-                     "Для получения кредита нажмите кнопку ниже:",
-                reply_markup=get_pledge_keyboard()
+                text="🚀 Займы под залог недвижимости – выгодные условия от частного инвестора!\n\n"
+                     "Получите деньги быстро и без лишних сложностей, сохранив право пользоваться своей недвижимостью. Мы предлагаем индивидуальные условия кредитования с минимальной переплатой и гибким графиком погашения.\n\n"
+                     "🔹 Квартира, дом или коммерческая недвижимость в залоге – вы остаетесь собственником\n"
+                     "🔹 Минимум документов – решение в кратчайшие сроки\n"
+                     "🔹 Сделка без банков – быстро, конфиденциально, без бюрократии\n\n"
+                     "Решите финансовые вопросы с надежным частным инвестором – оставьте заявку и получите деньги уже сегодня!",
+                reply_markup=keyboard
             )
             await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'help':
@@ -513,12 +516,30 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                     "• Страховой полис ОСАГО\n"
                     "• Согласие супруга(-и)"
                 )
-            msg = await bot.send_message(
-                chat_id=callback_query.message.chat.id,
-                text=text,
-                reply_markup=loan_keyboard,
-                parse_mode='HTML'
-            )
+            # Попытка отправить картинку
+            image_extensions = ['jpg', 'jpeg', 'png']
+            image_path = None
+            for ext in image_extensions:
+                path = f'images/{data}.{ext}'
+                if os.path.exists(path):
+                    image_path = path
+                    break
+            if image_path:
+                with open(image_path, 'rb') as photo:
+                    msg = await bot.send_photo(
+                        chat_id=callback_query.message.chat.id,
+                        photo=photo,
+                        caption=text,
+                        reply_markup=loan_keyboard,
+                        parse_mode='HTML'
+                    )
+            else:
+                msg = await bot.send_message(
+                    chat_id=callback_query.message.chat.id,
+                    text=text,
+                    reply_markup=loan_keyboard,
+                    parse_mode='HTML'
+                )
             await state.update_data(last_bot_message_id=msg.message_id)
         await callback_query.answer()
     except Exception as e:
