@@ -173,12 +173,6 @@ async def cmd_start(message: types.Message):
         args = message.get_args()
         source = args if args else 'direct'
         
-        # Проверяем, не было ли уже отправлено сообщение
-        data_state = await dp.storage.get_data(user=user.id)
-        if data_state and data_state.get('start_message_sent'):
-            logger.info(f"Start message already sent to user {user.id}, skipping")
-            return
-            
         welcome_message = (
             f"Привет, {full_name}. Вы находитесь в Финансовом Агрегаторе.\n\n"
             "Мы собрали для вас лучшие финансовые решения с наиболее выгодными условиями, чтобы помочь вам в важных моментах. В нашем ассортименте:\n\n"
