@@ -379,9 +379,6 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
             else:
                 # Старое поведение для МФО
                 link = mfo_links.get(mfo_name)
-                keyboard = InlineKeyboardMarkup()
-                keyboard.add(InlineKeyboardButton(text='✅ ЗАБРАТЬ ДЕНЬГИ НА КАРТУ', url=link))
-                keyboard.add(InlineKeyboardButton(text='◀️ Назад к списку МФО', callback_data='mfo_150k'))
                 image_extensions = ['jpg', 'jpeg', 'png']
                 image_path = None
                 for ext in image_extensions:
@@ -389,9 +386,10 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                     if os.path.exists(path):
                         image_path = path
                         break
-                if not image_path:
-                    msg = await callback_query.message.answer("Извините, картинка временно недоступна.")
-                else:
+                keyboard = InlineKeyboardMarkup()
+                keyboard.add(InlineKeyboardButton(text='✅ ЗАБРАТЬ ДЕНЬГИ НА КАРТУ', url=link))
+                keyboard.add(InlineKeyboardButton(text='◀️ Назад к списку МФО', callback_data='mfo_150k'))
+                if image_path:
                     with open(image_path, 'rb') as photo:
                         msg = await bot.send_photo(
                             chat_id=callback_query.message.chat.id,
@@ -399,6 +397,12 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                             caption=f'Получите займ в {mfo_info[mfo_name][0]}',
                             reply_markup=keyboard
                         )
+                else:
+                    msg = await bot.send_message(
+                        chat_id=callback_query.message.chat.id,
+                        text=f'Получите займ в {mfo_info[mfo_name][0]}',
+                        reply_markup=keyboard
+                    )
                 await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'back_to_main':
             msg = await bot.send_message(
