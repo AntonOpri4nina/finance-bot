@@ -517,12 +517,12 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
             await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'pts_5m':
             add_stat_row(callback_query.from_user.id, callback_query.from_user.full_name, callback_query.from_user.username, 'pts_5m')
-            pts_keyboard = InlineKeyboardMarkup()
-            pts_keyboard.add(InlineKeyboardButton("⚡️ Драйв от 2% в мес.", callback_data="pts_drive"))
-            pts_keyboard.add(InlineKeyboardButton("⚡️ Креди от 3% в мес.", callback_data="pts_kredi"))
-            pts_keyboard.add(InlineKeyboardButton("⚡️ КэшДрайв от 1,7% в мес.", callback_data="pts_cashdrive"))
-            pts_keyboard.add(InlineKeyboardButton("⚡️ Совком от 1,5% в мес.", callback_data="pts_sovcom"))
-            pts_keyboard.add(InlineKeyboardButton("◀️ Назад", callback_data="back_to_main"))
+            # Удаляем сообщение с фото, если оно есть
+            try:
+                await callback_query.message.delete()
+            except Exception as e:
+                logger.error(f'Ошибка при удалении сообщения с фото: {e}')
+            # Отправляем новое сообщение с меню ПТС
             msg = await bot.send_message(
                 chat_id=callback_query.message.chat.id,
                 text="🚀 Займы под залог ПТС – с минимальными переплатами от лицензированных кредиторов!\n\n"
@@ -531,7 +531,7 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                      "🔹 Минимальные требования к документам\n"
                      "🔹 Решение за 15 минут\n\n"
                      "Выбирайте надежного кредитора из нашего тщательно отобранного списка и решайте финансовые вопросы без риска!",
-                reply_markup=pts_keyboard
+                reply_markup=get_pts_keyboard()
             )
             await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'pledge_50m':
