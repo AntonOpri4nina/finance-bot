@@ -69,6 +69,27 @@ mfo_links = {
     'finmoll': 'https://trk.ppdu.ru/click/wQwFZLCW?erid=2SDnjd4YnrC',
 }
 
+async def setup_webhook():
+    """Устанавливает вебхук"""
+    global bot_is_running
+    try:
+        if WEBHOOK_URL:
+            webhook_url = WEBHOOK_URL + WEBHOOK_PATH
+            await bot.set_webhook(
+                webhook_url,
+                max_connections=100,
+                allowed_updates=["message", "callback_query"],
+                drop_pending_updates=True
+            )
+            logger.info(f"Webhook установлен: {webhook_url}")
+            bot_is_running = True
+        else:
+            logger.error("WEBHOOK_URL не задан! Укажите переменную окружения WEBHOOK_URL.")
+            bot_is_running = False
+    except Exception as e:
+        logger.error(f"Ошибка при установке вебхука: {e}")
+        bot_is_running = False
+
 async def check_webhook_health():
     """Проверяет состояние вебхука и переустанавливает его при необходимости"""
     global bot_is_running
@@ -83,27 +104,14 @@ async def check_webhook_health():
                 if not webhook_info.url or webhook_info.url != WEBHOOK_URL + WEBHOOK_PATH:
                     logger.warning(f"Вебхук не установлен или неверный URL: {webhook_info.url}")
                     await setup_webhook()
+                else:
+                    # Если вебхук работает нормально, просто логируем
+                    logger.info("Webhook status check: OK")
             
             await asyncio.sleep(300)  # Проверка каждые 5 минут
         except Exception as e:
             logger.error(f"Ошибка при проверке состояния вебхука: {e}")
             await asyncio.sleep(60)  # При ошибке ждем минуту перед следующей попыткой
-
-async def setup_webhook():
-    """Устанавливает вебхук"""
-    global bot_is_running
-    try:
-        if WEBHOOK_URL:
-            webhook_url = WEBHOOK_URL + WEBHOOK_PATH
-            await bot.set_webhook(webhook_url)
-            logger.info(f"Webhook установлен: {webhook_url}")
-            bot_is_running = True
-        else:
-            logger.error("WEBHOOK_URL не задан! Укажите переменную окружения WEBHOOK_URL.")
-            bot_is_running = False
-    except Exception as e:
-        logger.error(f"Ошибка при установке вебхука: {e}")
-        bot_is_running = False
 
 logger.info("Bot initialized successfully")
 
@@ -157,24 +165,38 @@ def get_pledge_keyboard():
 # Хендлеры
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message):
-    user = message.from_user
-    full_name = user.full_name or f"{user.first_name or ''} {user.last_name or ''}".strip()
-    
-    # Получаем source из аргументов команды
-    args = message.get_args()
-    source = args if args else 'direct'
-    
-    welcome_message = (
-        f"Привет, {full_name}. Вы находитесь в Финансовом Агрегаторе.\n\n"
-        "Мы собрали для вас лучшие финансовые решения с наиболее выгодными условиями, чтобы помочь вам в важных моментах. В нашем ассортименте:\n\n"
-        "🔍 Займы от МФО без залога — быстро и удобно.\n"
-        "🔍 Займы под залог авто или недвижимости — надежные решения для получения необходимой суммы.\n"
-        "🔍 И другие финансовые инструменты с оптимальными условиями, чтобы каждый нашел подходящий вариант.\n\n"
-        "Изучите доступные предложения и выберите то, что соответствует вашим потребностям. Мы здесь, чтобы помочь вам сделать правильный выбор!"
-    )
-    await message.answer(welcome_message, reply_markup=get_start_menu())
-    logger.info(f"User {user.id} started the bot from source: {source}")
-    add_stat_row(user.id, user.full_name, user.username, 'start', source)
+    try:
+        user = message.from_user
+        full_name = user.full_name or f"{user.first_name or ''} {user.last_name or ''}".strip()
+        
+        # Получаем source из аргументов команды
+        args = message.get_args()
+        source = args if args else 'direct'
+        
+        # Проверяем, не было ли уже отправлено сообщение
+        data_state = await dp.storage.get_data(user=user.id)
+        if data_state and data_state.get('start_message_sent'):
+            logger.info(f"Start message already sent to user {user.id}, skipping")
+            return
+            
+        welcome_message = (
+            f"Привет, {full_name}. Вы находитесь в Финансовом Агрегаторе.\n\n"
+            "Мы собрали для вас лучшие финансовые решения с наиболее выгодными условиями, чтобы помочь вам в важных моментах. В нашем ассортименте:\n\n"
+            "🔍 Займы от МФО без залога — быстро и удобно.\n"
+            "🔍 Займы под залог авто или недвижимости — надежные решения для получения необходимой суммы.\n"
+            "🔍 И другие финансовые инструменты с оптимальными условиями, чтобы каждый нашел подходящий вариант.\n\n"
+            "Изучите доступные предложения и выберите то, что соответствует вашим потребностям. Мы здесь, чтобы помочь вам сделать правильный выбор!"
+        )
+        
+        msg = await message.answer(welcome_message, reply_markup=get_start_menu())
+        logger.info(f"Start message sent to user {user.id} from source: {source}")
+        
+        # Сохраняем информацию о том, что сообщение отправлено
+        await dp.storage.set_data(user=user.id, data={'start_message_sent': True, 'last_bot_message_id': msg.message_id})
+        
+        add_stat_row(user.id, user.full_name, user.username, 'start', source)
+    except Exception as e:
+        logger.error(f"Error in start command handler: {e}")
 
 @dp.callback_query_handler(lambda c: True)
 async def callback_handler(callback_query: types.CallbackQuery, state: FSMContext):
