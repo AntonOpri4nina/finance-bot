@@ -339,28 +339,67 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                     await state.update_data(last_bot_message_id=msg.message_id)
         elif data.startswith('get_loan_'):
             mfo_name = data.split('_')[2]
-            link = mfo_links.get(mfo_name)
-            keyboard = InlineKeyboardMarkup()
-            keyboard.add(InlineKeyboardButton(text='✅ ЗАБРАТЬ ДЕНЬГИ НА КАРТУ', url=link))
-            keyboard.add(InlineKeyboardButton(text='◀️ Назад к списку МФО', callback_data='mfo_150k'))
-            image_extensions = ['jpg', 'jpeg', 'png']
-            image_path = None
-            for ext in image_extensions:
-                path = f'images/{mfo_name}.{ext}'
-                if os.path.exists(path):
-                    image_path = path
-                    break
-            if not image_path:
-                msg = await callback_query.message.answer("Извините, картинка временно недоступна.")
-            else:
-                with open(image_path, 'rb') as photo:
-                    msg = await bot.send_photo(
+            # Для ПТС-операторов показываем картинку, кнопку с внешней ссылкой и кнопку "Назад к списку кредиторов"
+            if mfo_name in ["pts_drive", "pts_kredi", "pts_cashdrive", "pts_sovcom"]:
+                pts_links = {
+                    "pts_drive": "https://slds.pro/az72w",
+                    "pts_kredi": "https://slds.pro/vcdj7",
+                    "pts_cashdrive": "https://slds.pro/hxhbv",
+                    "pts_sovcom": "https://trk.ppdu.ru/click/ELxQqqRu?erid=Kra23xE7N"
+                }
+                url = pts_links.get(mfo_name)
+                action_keyboard = InlineKeyboardMarkup()
+                if url:
+                    action_keyboard.add(InlineKeyboardButton("✅ ПОЛУЧИТЬ ДЕНЬГИ ЗА ПОЛЧАСА!", url=url))
+                else:
+                    action_keyboard.add(InlineKeyboardButton("✅ ПОЛУЧИТЬ ДЕНЬГИ ЗА ПОЛЧАСА!", callback_data="none"))
+                action_keyboard.add(InlineKeyboardButton("◀️ Назад к списку кредиторов", callback_data="pts_5m"))
+                image_extensions = ['jpg', 'jpeg', 'png']
+                image_path = None
+                for ext in image_extensions:
+                    path = f'images/{mfo_name}.{ext}'
+                    if os.path.exists(path):
+                        image_path = path
+                        break
+                if image_path:
+                    with open(image_path, 'rb') as photo:
+                        msg = await bot.send_photo(
+                            chat_id=callback_query.message.chat.id,
+                            photo=photo,
+                            caption=f'Получите займ в {mfo_name.replace("pts_", "").capitalize()}',
+                            reply_markup=action_keyboard
+                        )
+                else:
+                    msg = await bot.send_message(
                         chat_id=callback_query.message.chat.id,
-                        photo=photo,
-                        caption=f'Получите займ в {mfo_info[mfo_name][0]}',
-                        reply_markup=keyboard
+                        text=f'Получите займ в {mfo_name.replace("pts_", "").capitalize()}',
+                        reply_markup=action_keyboard
                     )
-            await state.update_data(last_bot_message_id=msg.message_id)
+                await state.update_data(last_bot_message_id=msg.message_id)
+            else:
+                # Старое поведение для МФО
+                link = mfo_links.get(mfo_name)
+                keyboard = InlineKeyboardMarkup()
+                keyboard.add(InlineKeyboardButton(text='✅ ЗАБРАТЬ ДЕНЬГИ НА КАРТУ', url=link))
+                keyboard.add(InlineKeyboardButton(text='◀️ Назад к списку МФО', callback_data='mfo_150k'))
+                image_extensions = ['jpg', 'jpeg', 'png']
+                image_path = None
+                for ext in image_extensions:
+                    path = f'images/{mfo_name}.{ext}'
+                    if os.path.exists(path):
+                        image_path = path
+                        break
+                if not image_path:
+                    msg = await callback_query.message.answer("Извините, картинка временно недоступна.")
+                else:
+                    with open(image_path, 'rb') as photo:
+                        msg = await bot.send_photo(
+                            chat_id=callback_query.message.chat.id,
+                            photo=photo,
+                            caption=f'Получите займ в {mfo_info[mfo_name][0]}',
+                            reply_markup=keyboard
+                        )
+                await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'back_to_main':
             msg = await bot.send_message(
                 chat_id=callback_query.message.chat.id,
@@ -514,30 +553,12 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                     "• Страховой полис ОСАГО\n"
                     "• Согласие супруга(-и)"
                 )
-            # Попытка отправить картинку
-            image_extensions = ['jpg', 'jpeg', 'png']
-            image_path = None
-            for ext in image_extensions:
-                path = f'images/{data}.{ext}'
-                if os.path.exists(path):
-                    image_path = path
-                    break
-            if image_path:
-                with open(image_path, 'rb') as photo:
-                    msg = await bot.send_photo(
-                        chat_id=callback_query.message.chat.id,
-                        photo=photo,
-                        caption=text,
-                        reply_markup=loan_keyboard,
-                        parse_mode='HTML'
-                    )
-            else:
-                msg = await bot.send_message(
-                    chat_id=callback_query.message.chat.id,
-                    text=text,
-                    reply_markup=loan_keyboard,
-                    parse_mode='HTML'
-                )
+            msg = await bot.send_message(
+                chat_id=callback_query.message.chat.id,
+                text=text,
+                reply_markup=loan_keyboard,
+                parse_mode='HTML'
+            )
             await state.update_data(last_bot_message_id=msg.message_id)
         await callback_query.answer()
     except Exception as e:
