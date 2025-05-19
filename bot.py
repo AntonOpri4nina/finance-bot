@@ -581,6 +581,17 @@ async def send_stats_file(message: types.Message):
     else:
         await message.reply('Нет доступа')
 
+@dp.message_handler(commands=['getdb'])
+async def send_db_file(message: types.Message):
+    if message.from_user.id in ADMIN_IDS:
+        try:
+            with open('stats.db', 'rb') as f:
+                await message.answer_document(types.InputFile(f, filename='stats.db'))
+        except Exception as e:
+            await message.reply(f'Ошибка при отправке файла: {e}')
+    else:
+        await message.reply('Нет доступа')
+
 async def on_startup(dp):
     """Действия при запуске бота"""
     await setup_webhook()
