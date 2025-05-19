@@ -10,7 +10,7 @@ import os
 import asyncio
 import aiohttp
 from datetime import datetime
-from db import create_table, add_stat_row
+from db import create_table, add_stat_row, get_source_stats, get_user_stats
 import sqlite3
 
 # Загружаем переменные окружения из .env файла
@@ -653,16 +653,31 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
 
 @dp.message_handler(commands=['help'])
 async def help_command_handler(message: types.Message):
-    await message.answer(
-        "ℹ️ Я бот для оформления займов под залог недвижимости. Вот что я могу для вас сделать:\n\n"
-        "🔹 Оформить заявку – подберу лучшие условия от частных инвесторов\n"
-        "🔹 Рассчитать сумму – помогу оценить вашу недвижимость и возможный займ\n"
-        "🔹 Ответить на вопросы – расскажу о требованиях, сроках и документах\n"
-        "🔹 Связать с инвестором – организую быструю и безопасную сделку\n\n"
-        "📌 Чтобы начать, выберите нужную опцию в меню или напишите свой вопрос.\n"
-        "📌Техподдержка и помощь с заявками: <a href='https://t.me/Odobrenie41Bot'>@support_finagr</a>",
-        parse_mode='HTML'
-    )
+    if message.from_user.id in ADMIN_IDS:
+        help_text = (
+            "🔧 <b>Команды администратора:</b>\n\n"
+            "/sourcestats - Статистика по источникам трафика\n"
+            "/userstats ID - Статистика по конкретному пользователю\n"
+            "/getstats - Получить файл статистики\n"
+            "/getdb - Получить файл базы данных\n\n"
+            "📊 <b>Статистика включает:</b>\n"
+            "• Количество переходов\n"
+            "• Уникальных пользователей\n"
+            "• Конверсии\n"
+            "• Процент конверсии"
+        )
+    else:
+        help_text = (
+            "ℹ️ Я бот для оформления займов под залог недвижимости. Вот что я могу для вас сделать:\n\n"
+            "🔹 Оформить заявку – подберу лучшие условия от частных инвесторов\n"
+            "🔹 Рассчитать сумму – помогу оценить вашу недвижимость и возможный займ\n"
+            "🔹 Ответить на вопросы – расскажу о требованиях, сроках и документах\n"
+            "🔹 Связать с инвестором – организую быструю и безопасную сделку\n\n"
+            "📌 Чтобы начать, выберите нужную опцию в меню или напишите свой вопрос.\n"
+            "📌Техподдержка и помощь с заявками: <a href='https://t.me/Odobrenie41Bot'>@support_finagr</a>"
+        )
+    
+    await message.answer(help_text, parse_mode='HTML')
 
 @dp.message_handler(commands=['getstats'])
 async def send_stats_file(message: types.Message):
@@ -690,22 +705,7 @@ async def send_db_file(message: types.Message):
 async def send_source_stats(message: types.Message):
     if message.from_user.id in ADMIN_IDS:
         try:
-            conn = sqlite3.connect('stats.db')
-            c = conn.cursor()
-            
-            # Получаем общую статистику по источникам
-            c.execute('''
-                SELECT source, 
-                       COUNT(*) as total_users,
-                       COUNT(DISTINCT user_id) as unique_users,
-                       SUM(CASE WHEN action = 'get_loan_' THEN 1 ELSE 0 END) as conversions
-                FROM stats_log 
-                GROUP BY source
-                ORDER BY total_users DESC
-            ''')
-            
-            stats = c.fetchall()
-            conn.close()
+            stats = get_source_stats()
             
             if not stats:
                 await message.reply("Статистика по источникам пока пуста.")
@@ -714,8 +714,13 @@ async def send_source_stats(message: types.Message):
             # Формируем сообщение со статистикой
             stats_message = "📊 <b>Статистика по источникам трафика:</b>\n\n"
             
-            for source, total, unique, conversions in stats:
+            for row in stats:
+                source = row['source']
+                total = row['total_users']
+                unique = row['unique_users']
+                conversions = row['conversions']
                 conversion_rate = (conversions / total * 100) if total > 0 else 0
+                
                 stats_message += (
                     f"<b>Источник:</b> {source}\n"
                     f"👥 Всего переходов: {total}\n"
@@ -727,12 +732,59 @@ async def send_source_stats(message: types.Message):
             await message.reply(stats_message, parse_mode='HTML')
             
         except Exception as e:
+            logger.error(f"Error in sourcestats command: {e}")
+            await message.reply(f'Ошибка при получении статистики: {e}')
+    else:
+        await message.reply('Нет доступа')
+
+@dp.message_handler(commands=['userstats'])
+async def send_user_stats(message: types.Message):
+    if message.from_user.id in ADMIN_IDS:
+        try:
+            # Получаем ID пользователя из аргументов команды
+            args = message.get_args()
+            if not args:
+                await message.reply("Укажите ID пользователя: /userstats ID")
+                return
+                
+            try:
+                user_id = int(args)
+            except ValueError:
+                await message.reply("ID пользователя должен быть числом")
+                return
+                
+            stats = get_user_stats(user_id)
+            
+            if not stats:
+                await message.reply(f"Статистика по пользователю {user_id} не найдена.")
+                return
+                
+            # Формируем сообщение со статистикой
+            stats_message = f"📊 <b>Статистика пользователя {user_id}:</b>\n\n"
+            
+            for row in stats:
+                action = row['action']
+                source = row['source']
+                timestamp = datetime.strptime(row['timestamp'], '%Y-%m-%d %H:%M:%S').strftime('%d.%m.%Y %H:%M:%S')
+                
+                stats_message += (
+                    f"🕒 {timestamp}\n"
+                    f"📝 Действие: {action}\n"
+                    f"🔗 Источник: {source}\n\n"
+                )
+            
+            await message.reply(stats_message, parse_mode='HTML')
+            
+        except Exception as e:
+            logger.error(f"Error in userstats command: {e}")
             await message.reply(f'Ошибка при получении статистики: {e}')
     else:
         await message.reply('Нет доступа')
 
 async def on_startup(dp):
     """Действия при запуске бота"""
+    # Создаем таблицу при запуске
+    create_table()
     await setup_webhook()
     # Запускаем проверку состояния вебхука в фоновом режиме
     asyncio.create_task(check_webhook_health())
@@ -745,6 +797,9 @@ async def on_shutdown(dp):
     logger.info("Webhook удален")
 
 if __name__ == '__main__':
+    # Создаем таблицу при запуске скрипта
+    create_table()
+    
     port = int(os.getenv('PORT', 10000))
     executor.start_webhook(
         dispatcher=dp,
