@@ -425,18 +425,6 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                 reply_markup=get_start_menu()
             )
             await state.update_data(last_bot_message_id=msg.message_id)
-        elif data == 'get_pts_loan':
-            msg = await bot.send_message(
-                chat_id=callback_query.message.chat.id,
-                text="📝 Для получения кредита под ПТС:\n\n"
-                     "1. Нажмите на кнопку ниже\n"
-                     "2. Заполните анкету\n"
-                     "3. Загрузите документы на автомобиль\n"
-                     "4. Получите решение\n\n"
-                     "⚡️ Среднее время рассмотрения: 1-2 часа",
-                reply_markup=get_pts_keyboard()
-            )
-            await state.update_data(last_bot_message_id=msg.message_id)
         elif data == 'get_pledge_loan':
             msg = await bot.send_message(
                 chat_id=callback_query.message.chat.id,
@@ -530,26 +518,6 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                 text=text,
                 reply_markup=loan_keyboard,
                 parse_mode='HTML'
-            )
-            await state.update_data(last_bot_message_id=msg.message_id)
-        elif data.startswith("get_loan_pts_"):
-            pts_links = {
-                "get_loan_pts_drive": "https://slds.pro/az72w",
-                "get_loan_pts_kredi": "https://slds.pro/vcdj7",
-                "get_loan_pts_cashdrive": "https://slds.pro/hxhbv",
-                "get_loan_pts_sovcom": "https://trk.ppdu.ru/click/ELxQqqRu?erid=Kra23xE7N"
-            }
-            url = pts_links.get(data)
-            action_keyboard = InlineKeyboardMarkup()
-            if url:
-                action_keyboard.add(InlineKeyboardButton("✅ ПОЛУЧИТЬ ДЕНЬГИ ЗА ПОЛЧАСА!", url=url))
-            else:
-                action_keyboard.add(InlineKeyboardButton("✅ ПОЛУЧИТЬ ДЕНЬГИ ЗА ПОЛЧАСА!", callback_data="none"))
-            action_keyboard.add(InlineKeyboardButton("◀️ Назад к списку кредиторов", callback_data="pts_5m"))
-            msg = await bot.send_message(
-                chat_id=callback_query.message.chat.id,
-                text="Здесь будет картинка",
-                reply_markup=action_keyboard
             )
             await state.update_data(last_bot_message_id=msg.message_id)
         await callback_query.answer()
