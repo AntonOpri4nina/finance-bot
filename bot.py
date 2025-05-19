@@ -558,6 +558,12 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
             )
             logger.info(f"Sent PTS menu message with ID: {msg.message_id}")
             await state.update_data(last_bot_message_id=msg.message_id)
+            
+            # Удаляем предыдущее сообщение только после успешной отправки нового
+            try:
+                await callback_query.message.delete()
+            except Exception as e:
+                logger.error(f"Error deleting previous message: {e}")
         elif data == 'pledge_50m':
             add_stat_row(callback_query.from_user.id, callback_query.from_user.full_name, callback_query.from_user.username, 'pledge_50m')
             keyboard = InlineKeyboardMarkup()
