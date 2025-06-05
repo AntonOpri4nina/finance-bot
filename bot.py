@@ -10,7 +10,11 @@ import os
 import asyncio
 import aiohttp
 from datetime import datetime
-from db import create_table, add_stat_row, get_source_stats, get_user_stats
+from db import (
+    create_table, add_stat_row, get_source_stats, get_user_stats,
+    add_user_first_interaction, get_users_for_reminder, mark_reminder_sent,
+    add_pending_event, get_unprocessed_pending_events, mark_pending_event_processed
+)
 import sqlite3
 
 # Загружаем переменные окружения из .env файла
@@ -168,11 +172,9 @@ async def cmd_start(message: types.Message):
     try:
         user = message.from_user
         full_name = user.full_name or f"{user.first_name or ''} {user.last_name or ''}".strip()
-        
-        # Получаем source из аргументов команды
         args = message.get_args()
         source = args if args else 'direct'
-        
+        add_user_first_interaction(user.id)
         welcome_message = (
             f"Привет, {full_name}. Вы находитесь в Финансовом Агрегаторе.\n\n"
             "Мы собрали для вас лучшие финансовые решения с наиболее выгодными условиями, чтобы помочь вам в важных моментах. В нашем ассортименте:\n\n"
@@ -181,23 +183,23 @@ async def cmd_start(message: types.Message):
             "🔍 И другие финансовые инструменты с оптимальными условиями, чтобы каждый нашел подходящий вариант.\n\n"
             "Изучите доступные предложения и выберите то, что соответствует вашим потребностям. Мы здесь, чтобы помочь вам сделать правильный выбор!"
         )
-        
         msg = await message.answer(welcome_message, reply_markup=get_start_menu())
         logger.info(f"Start message sent to user {user.id} from source: {source}")
-        
-        # Сохраняем информацию о том, что сообщение отправлено
         await dp.storage.set_data(user=user.id, data={'start_message_sent': True, 'last_bot_message_id': msg.message_id})
-        
         add_stat_row(user.id, user.full_name, user.username, 'start', source)
     except Exception as e:
         logger.error(f"Error in start command handler: {e}")
+        # Сохраняем событие, если не удалось ответить
+        try:
+            add_pending_event(message.from_user.id, 'start', '')
+        except Exception as db_e:
+            logger.error(f"Error saving pending start event: {db_e}")
 
 @dp.callback_query_handler(lambda c: True)
 async def callback_handler(callback_query: types.CallbackQuery, state: FSMContext):
     data = callback_query.data
     logger.info(f"Received callback_data: {data}")
     logger.info(f"Processing callback for user {callback_query.from_user.id}")
-    
     try:
         # Получаем id предыдущего сообщения, если есть
         data_state = await state.get_data()
@@ -650,6 +652,11 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
             await callback_query.answer()
     except Exception as e:
         logger.error(f"Error in callback handler: {e}")
+        # Сохраняем событие, если не удалось ответить
+        try:
+            add_pending_event(callback_query.from_user.id, 'callback', data)
+        except Exception as db_e:
+            logger.error(f"Error saving pending callback event: {db_e}")
 
 @dp.message_handler(commands=['help'])
 async def help_command_handler(message: types.Message):
@@ -781,13 +788,124 @@ async def send_user_stats(message: types.Message):
     else:
         await message.reply('Нет доступа')
 
+async def send_reminders():
+    """Отправляет напоминания пользователям"""
+    error_count = 0
+    max_errors = 3
+    
+    while True:
+        try:
+            # Получаем пользователей для напоминаний
+            users = get_users_for_reminder()
+            
+            # Отправляем напоминания через 1 день
+            for user in users['day_1']:
+                try:
+                    await bot.send_message(
+                        chat_id=user['user_id'],
+                        text="👋 Приветствую! Прошло уже 24 часа с момента нашего знакомства.\n\n"
+                             "Не упустите возможность получить займ на выгодных условиях.\n"
+                             "Выберите подходящий вариант в меню бота!",
+                        reply_markup=get_main_menu()
+                    )
+                    mark_reminder_sent(user['user_id'], '1')
+                except Exception as e:
+                    logger.error(f"Error sending 1-day reminder to user {user['user_id']}: {e}")
+            
+            # Отправляем напоминания через 3 дня
+            for user in users['day_3']:
+                try:
+                    await bot.send_message(
+                        chat_id=user['user_id'],
+                        text="👋 Снова здравствуйте! Прошло 3 дня с момента нашего знакомства.\n\n"
+                             "Напоминаем о наших выгодных предложениях:\n"
+                             "• Первый займ под 0%\n"
+                             "• Решение за 15 минут\n"
+                             "• Минимум документов\n\n"
+                             "Выберите подходящий вариант в меню бота!",
+                        reply_markup=get_main_menu()
+                    )
+                    mark_reminder_sent(user['user_id'], '3')
+                except Exception as e:
+                    logger.error(f"Error sending 3-day reminder to user {user['user_id']}: {e}")
+            
+            # Отправляем напоминания через 10 дней
+            for user in users['day_10']:
+                try:
+                    await bot.send_message(
+                        chat_id=user['user_id'],
+                        text="👋 Добрый день! Напоминаю вам, что специально для вас, мы собрали лучшие предложения на рынке финансирования:\n\n"
+                             "• Сниженные ставки\n"
+                             "• Увеличенные лимиты\n"
+                             "• Персональные условия\n\n"
+                             "Выберите подходящий вариант в меню бота!",
+                        reply_markup=get_main_menu()
+                    )
+                    mark_reminder_sent(user['user_id'], '10')
+                except Exception as e:
+                    logger.error(f"Error sending 10-day reminder to user {user['user_id']}: {e}")
+            
+            # Сбрасываем счетчик ошибок при успешном выполнении
+            error_count = 0
+            
+            # Проверяем каждые 6 часов
+            await asyncio.sleep(6 * 60 * 60)
+            
+        except Exception as e:
+            error_count += 1
+            logger.error(f"Error in send_reminders: {e}")
+            
+            if error_count >= max_errors:
+                logger.critical(f"Too many errors in send_reminders ({error_count}). Restarting...")
+                # Перезапускаем бота
+                await setup_webhook()
+                error_count = 0
+            
+            # Ждем 5 минут перед следующей попыткой
+            await asyncio.sleep(300)
+
+async def process_pending_events():
+    """Обрабатывает неотвеченные события при запуске бота"""
+    events = get_unprocessed_pending_events()
+    for event in events:
+        try:
+            user_id = event['user_id']
+            event_type = event['event_type']
+            event_data = event['event_data']
+            # Универсальная обработка событий
+            if event_type == 'start':
+                await bot.send_message(
+                    chat_id=user_id,
+                    text="Привет! Вы запускали бота, когда он был недоступен. Сейчас бот снова работает!\n\n"
+                         "Мы собрали для вас лучшие финансовые решения с наиболее выгодными условиями. Выберите подходящий вариант в меню бота!",
+                    reply_markup=get_start_menu()
+                )
+            elif event_type == 'callback':
+                # Можно доработать под разные callback, пока просто уведомление
+                await bot.send_message(
+                    chat_id=user_id,
+                    text="Бот был временно недоступен. Пожалуйста, повторите ваш запрос — сейчас всё работает!"
+                )
+            elif event_type == 'message':
+                await bot.send_message(
+                    chat_id=user_id,
+                    text="Бот был временно недоступен. Пожалуйста, повторите ваш запрос — сейчас всё работает!"
+                )
+            # Можно добавить обработку других типов событий
+            mark_pending_event_processed(event['id'])
+        except Exception as e:
+            logger.error(f"Ошибка при обработке pending event {event['id']}: {e}")
+
 async def on_startup(dp):
     """Действия при запуске бота"""
     # Создаем таблицу при запуске
     create_table()
     await setup_webhook()
-    # Запускаем проверку состояния вебхука в фоновом режиме
+    # Запускаем проверку состояния вебхука и отправку напоминаний в фоновом режиме
     asyncio.create_task(check_webhook_health())
+    asyncio.create_task(send_reminders())
+    # Обрабатываем неотвеченные события
+    await process_pending_events()
 
 async def on_shutdown(dp):
     """Действия при остановке бота"""

@@ -1,32 +1,39 @@
-# Finance Telegram Bot
+# Finance Bot
 
-## Запуск локально
+Telegram-бот для подбора финансовых предложений.
 
-1. Установите зависимости:
+## Быстрый старт
+
+1. Клонируйте репозиторий:
+   ```
+   git clone https://github.com/yourusername/finance-bot.git
+   cd finance-bot
+   ```
+2. Установите зависимости:
    ```
    pip install -r requirements.txt
    ```
-
-2. Создайте файл `.env` и добавьте ваш токен:
+3. Создайте файл `.env` на основе `.env.example` и укажите свои значения:
    ```
    API_TOKEN=ваш_токен_бота
+   WEBHOOK_URL=https://your-app-name.onrender.com
    ```
-
-3. Запустите бота:
+4. Запустите бота локально:
    ```
    python bot.py
    ```
 
 ## Деплой на Render
+- Добавьте переменные окружения API_TOKEN и WEBHOOK_URL в настройках Render.
+- Убедитесь, что в render.yaml прописан healthCheckPath: `/webhook`.
+- Для стабильной работы используйте мониторинг через UptimeRobot.
 
-1. Создайте аккаунт на [Render](https://render.com).
-2. Создайте новый Web Service, выбрав ваш репозиторий.
-3. Укажите команду запуска: `python bot.py`.
-4. Добавьте переменную окружения `API_TOKEN` со значением вашего токена.
-5. Нажмите "Create Web Service".
+## Структура проекта
+- `bot.py` — основной код бота
+- `db.py` — работа с базой данных и напоминаниями
+- `requirements.txt` — зависимости
+- `render.yaml` — конфиг Render
+- `images/` — изображения для сообщений (если используются)
 
-## Зависимости
-
-- aiogram
-- python-dotenv
-- pytz 
+## Лицензия
+MIT 

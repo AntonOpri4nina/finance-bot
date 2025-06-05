@@ -8,4 +8,17 @@ services:
       - key: PYTHON_VERSION
         value: 3.9.0
       - key: API_TOKEN
-        sync: false 
+        sync: false
+    healthCheckPath: /webhook
+    autoDeploy: true
+    numInstances: 1
+    plan: free
+    envVars:
+      - key: WEBHOOK_URL
+        sync: false
+    # Настройки для автоматического перезапуска
+    restartPolicy:
+      type: always
+      maxRetries: 3
+      initialDelaySeconds: 10
+      maxDelaySeconds: 300 
