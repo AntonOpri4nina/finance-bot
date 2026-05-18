@@ -1,11 +1,10 @@
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage  # ✅ aiogram 3.x
-from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils import executor
-from dotenv import load_dotenv
+# executor больше не нужен, используем встроенную async функцию
 import os
 import asyncio
 import aiohttp
