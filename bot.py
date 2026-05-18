@@ -10,7 +10,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 from db import (
@@ -37,7 +37,7 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
-dp = Dispatcher(storage=storage)  # ← в v3 бот НЕ передаётся в Dispatcher
+dp = Dispatcher(storage=storage)
 
 bot_is_running = False
 
@@ -75,43 +75,43 @@ def get_start_menu():
 
 def get_main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💸 Без залога до 150к",          callback_data="mfo_150k")],
-        [InlineKeyboardButton(text="🚗 Под ПТС до 5млн",             callback_data="pts_5m")],
-        [InlineKeyboardButton(text="🏠 Под недвижимость до 50м",     callback_data="pledge_50m")],
-        [InlineKeyboardButton(text="◀️ Назад",                        callback_data="back_to_start")],
+        [InlineKeyboardButton(text="💸 Без залога до 150к",       callback_data="mfo_150k")],
+        [InlineKeyboardButton(text="🚗 Под ПТС до 5млн",          callback_data="pts_5m")],
+        [InlineKeyboardButton(text="🏠 Под недвижимость до 50м",  callback_data="pledge_50m")],
+        [InlineKeyboardButton(text="◀️ Назад",                     callback_data="back_to_start")],
     ])
 
 def get_mfo_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚡️ ЭкспрессДеньги 0%",           callback_data="mfo_express")],
-        [InlineKeyboardButton(text="⚡️ Срочноденьги 0%",             callback_data="mfo_urgent")],
-        [InlineKeyboardButton(text="⚡️ А Деньги 7 дней 0%",          callback_data="mfo_amoney")],
-        [InlineKeyboardButton(text="⚡️ РокетМэн 0,6%",               callback_data="mfo_rocket")],
-        [InlineKeyboardButton(text="⚡️ Небус от 0,48%",              callback_data="mfo_nebus")],
-        [InlineKeyboardButton(text="⚡️ Доброзайм от 0%",             callback_data="mfo_dobro")],
-        [InlineKeyboardButton(text="⚡️ ФИНМОЛЛ от 0,59%",            callback_data="mfo_finmoll")],
-        [InlineKeyboardButton(text="◀️ Назад",                        callback_data="back_to_main")],
+        [InlineKeyboardButton(text="⚡️ ЭкспрессДеньги 0%",        callback_data="mfo_express")],
+        [InlineKeyboardButton(text="⚡️ Срочноденьги 0%",          callback_data="mfo_urgent")],
+        [InlineKeyboardButton(text="⚡️ А Деньги 7 дней 0%",       callback_data="mfo_amoney")],
+        [InlineKeyboardButton(text="⚡️ РокетМэн 0,6%",            callback_data="mfo_rocket")],
+        [InlineKeyboardButton(text="⚡️ Небус от 0,48%",           callback_data="mfo_nebus")],
+        [InlineKeyboardButton(text="⚡️ Доброзайм от 0%",          callback_data="mfo_dobro")],
+        [InlineKeyboardButton(text="⚡️ ФИНМОЛЛ от 0,59%",         callback_data="mfo_finmoll")],
+        [InlineKeyboardButton(text="◀️ Назад",                     callback_data="back_to_main")],
     ])
 
 def get_loan_keyboard(mfo_name: str):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📝 Получить займ",                callback_data=f"get_loan_{mfo_name}")],
-        [InlineKeyboardButton(text="◀️ Назад к списку МФО",           callback_data="mfo_150k")],
+        [InlineKeyboardButton(text="📝 Получить займ",             callback_data=f"get_loan_{mfo_name}")],
+        [InlineKeyboardButton(text="◀️ Назад к списку МФО",        callback_data="mfo_150k")],
     ])
 
 def get_pts_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚡️ Драйв от 2% в мес.",          callback_data="pts_drive")],
-        [InlineKeyboardButton(text="⚡️ Креди от 3% в мес.",          callback_data="pts_kredi")],
-        [InlineKeyboardButton(text="⚡️ КэшДрайв от 1,7% в мес.",    callback_data="pts_cashdrive")],
-        [InlineKeyboardButton(text="⚡️ Совком от 1,5% в мес.",       callback_data="pts_sovcom")],
-        [InlineKeyboardButton(text="◀️ Назад",                        callback_data="back_to_main")],
+        [InlineKeyboardButton(text="⚡️ Драйв от 2% в мес.",       callback_data="pts_drive")],
+        [InlineKeyboardButton(text="⚡️ Креди от 3% в мес.",       callback_data="pts_kredi")],
+        [InlineKeyboardButton(text="⚡️ КэшДрайв от 1,7% в мес.", callback_data="pts_cashdrive")],
+        [InlineKeyboardButton(text="⚡️ Совком от 1,5% в мес.",    callback_data="pts_sovcom")],
+        [InlineKeyboardButton(text="◀️ Назад",                     callback_data="back_to_main")],
     ])
 
 def get_pledge_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📝 Получить кредит",              callback_data="get_pledge_loan")],
-        [InlineKeyboardButton(text="◀️ Назад",                        callback_data="back_to_main")],
+        [InlineKeyboardButton(text="📝 Получить кредит",           callback_data="get_pledge_loan")],
+        [InlineKeyboardButton(text="◀️ Назад",                     callback_data="back_to_main")],
     ])
 
 
@@ -152,6 +152,14 @@ async def check_webhook_health():
         except Exception as e:
             logger.error(f"Ошибка проверки вебхука: {e}")
             await asyncio.sleep(60)
+
+def find_image(name: str):
+    """Ищет картинку для МФО/ПТС, возвращает путь или None"""
+    return next(
+        (f"images/{name}.{ext}" for ext in ['jpg', 'jpeg', 'png']
+         if os.path.exists(f"images/{name}.{ext}")),
+        None
+    )
 
 
 # ─── Хендлеры ─────────────────────────────────────────────────────────────────
@@ -220,7 +228,7 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                 reply_markup=get_mfo_menu())
             await state.update_data(last_bot_message_id=msg.message_id)
 
-        elif data.startswith('mfo_') and not data.startswith('mfo_150k'):
+        elif data.startswith('mfo_') and data != 'mfo_150k':
             mfo_name = data[len('mfo_'):]
             if mfo_name in mfo_info:
                 await delete_old_messages()
@@ -364,25 +372,34 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                     [InlineKeyboardButton(text="✅ ПОЛУЧИТЬ ДЕНЬГИ ЗА ПОЛЧАСА!", url=url)],
                     [InlineKeyboardButton(text="◀️ Назад к списку кредиторов", callback_data="pts_5m")],
                 ])
-                image_path = next((f"images/{mfo_name}.{ext}" for ext in ['jpg','jpeg','png'] if os.path.exists(f"images/{mfo_name}.{ext}")), None)
+                image_path = find_image(mfo_name)
                 if image_path:
-                    with open(image_path, 'rb') as photo:
-                        msg = await bot.send_photo(chat_id, photo, caption=f"Получите займ в {mfo_name.replace('pts_','').capitalize()}", reply_markup=kb)
+                    # ✅ ИСПРАВЛЕНО: FSInputFile вместо open()
+                    msg = await bot.send_photo(chat_id, FSInputFile(image_path),
+                        caption=f"Получите займ в {mfo_name.replace('pts_', '').capitalize()}",
+                        reply_markup=kb)
                 else:
-                    msg = await bot.send_message(chat_id, f"Получите займ в {mfo_name.replace('pts_','').capitalize()}", reply_markup=kb)
+                    msg = await bot.send_message(chat_id,
+                        f"Получите займ в {mfo_name.replace('pts_', '').capitalize()}",
+                        reply_markup=kb)
                 await state.update_data(last_bot_message_id=msg.message_id)
+
             elif mfo_name in mfo_links:
                 link = mfo_links[mfo_name]
                 kb = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="✅ ЗАБРАТЬ ДЕНЬГИ НА КАРТУ", url=link)],
                     [InlineKeyboardButton(text="◀️ Назад к списку МФО", callback_data="mfo_150k")],
                 ])
-                image_path = next((f"images/{mfo_name}.{ext}" for ext in ['jpg','jpeg','png'] if os.path.exists(f"images/{mfo_name}.{ext}")), None)
+                image_path = find_image(mfo_name)
                 if image_path:
-                    with open(image_path, 'rb') as photo:
-                        msg = await bot.send_photo(chat_id, photo, caption=f"Получите займ в {mfo_info[mfo_name][0]}", reply_markup=kb)
+                    # ✅ ИСПРАВЛЕНО: FSInputFile вместо open()
+                    msg = await bot.send_photo(chat_id, FSInputFile(image_path),
+                        caption=f"Получите займ в {mfo_info[mfo_name][0]}",
+                        reply_markup=kb)
                 else:
-                    msg = await bot.send_message(chat_id, f"Получите займ в {mfo_info[mfo_name][0]}", reply_markup=kb)
+                    msg = await bot.send_message(chat_id,
+                        f"Получите займ в {mfo_info[mfo_name][0]}",
+                        reply_markup=kb)
                 await state.update_data(last_bot_message_id=msg.message_id)
 
         elif data == 'back_to_main':
@@ -457,8 +474,7 @@ async def send_stats_file(message: types.Message):
     if message.from_user.id not in ADMIN_IDS:
         return await message.reply('Нет доступа')
     try:
-        doc = types.FSInputFile('stats_log.csv')
-        await message.answer_document(doc)
+        await message.answer_document(FSInputFile('stats_log.csv'))
     except Exception as e:
         await message.reply(f'Ошибка: {e}')
 
@@ -468,8 +484,7 @@ async def send_db_file(message: types.Message):
     if message.from_user.id not in ADMIN_IDS:
         return await message.reply('Нет доступа')
     try:
-        doc = types.FSInputFile('stats.db')
-        await message.answer_document(doc)
+        await message.answer_document(FSInputFile('stats.db'))
     except Exception as e:
         await message.reply(f'Ошибка: {e}')
 
