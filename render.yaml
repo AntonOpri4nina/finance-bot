@@ -2,11 +2,10 @@ services:
   - type: web
     name: finance-bot
     env: python
+    pythonVersion: 3.11.9
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
       - key: API_TOKEN
         sync: false
       - key: WEBHOOK_URL
@@ -15,7 +14,6 @@ services:
     autoDeploy: true
     numInstances: 1
     plan: free
-    # Настройки для автоматического перезапуска
     restartPolicy:
       type: always
       maxRetries: 3
