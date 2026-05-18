@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finance-bot"
+version = "0.1.0"
+description = "Telegram finance bot"
+requires-python = ">=3.11"
+dependencies = [
+    "aiogram==3.14.0",
+    "pytz==2024.1",
+    "python-dotenv==1.0.0",
+    "pydantic==2.8.2",
+    "aiohttp==3.10.11",
+    "aiofiles==24.1.0",
+    "certifi>=2023.7.22",
+    "magic-filter==1.0.12",
+    "typing-extensions==4.15.0",
+]
