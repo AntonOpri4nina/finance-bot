@@ -1,20 +1,16 @@
 [Unit]
-Description=Finance Bot Telegram Service
+Description=Finance Telegram Bot
 After=network.target
-StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-User=finance-bot
-WorkingDirectory=/home/finance-bot/finance-bot
-EnvironmentFile=/home/finance-bot/finance-bot/.env
-ExecStart=/usr/bin/python3 /home/finance-bot/finance-bot/bot.py
+User=botuser
+WorkingDirectory=/opt/finance-bot
+ExecStart=/opt/finance-bot/venv/bin/python bot.py
 Restart=always
-RestartSec=10
+RestartSec=5
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=finance-bot
 
-# Автозапуск сервиса при перезагрузке
 [Install]
 WantedBy=multi-user.target

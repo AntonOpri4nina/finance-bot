@@ -4,14 +4,12 @@ import asyncio
 from datetime import datetime
 
 from dotenv import load_dotenv
-from aiohttp import web
 
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 from db import (
     create_table, add_stat_row, get_source_stats, get_user_stats,
@@ -32,16 +30,9 @@ if not API_TOKEN:
     logger.error("API_TOKEN не найден в .env файле!")
     exit(1)
 
-WEBHOOK_PATH = "/webhook"
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
-
-bot_is_running = False
-
-create_table()
 
 ADMIN_IDS = [1006600764, 130155491]
 
@@ -116,42 +107,6 @@ def get_pledge_keyboard():
 
 
 # ─── Вспомогательные функции ───────────────────────────────────────────────────
-
-async def setup_webhook():
-    global bot_is_running
-    try:
-        if WEBHOOK_URL:
-            url = WEBHOOK_URL + WEBHOOK_PATH
-            await bot.set_webhook(url, max_connections=100,
-                                  allowed_updates=["message", "callback_query"],
-                                  drop_pending_updates=True)
-            logger.info(f"Webhook установлен: {url}")
-            bot_is_running = True
-        else:
-            logger.error("WEBHOOK_URL не задан!")
-            bot_is_running = False
-    except Exception as e:
-        logger.error(f"Ошибка при установке вебхука: {e}")
-        bot_is_running = False
-
-async def check_webhook_health():
-    global bot_is_running
-    while True:
-        try:
-            if not bot_is_running:
-                logger.warning("Бот не работает, пытаемся перезапустить...")
-                await setup_webhook()
-            else:
-                info = await bot.get_webhook_info()
-                if not info.url or info.url != WEBHOOK_URL + WEBHOOK_PATH:
-                    logger.warning(f"Вебхук неверный: {info.url}")
-                    await setup_webhook()
-                else:
-                    logger.info("Webhook status check: OK")
-            await asyncio.sleep(300)
-        except Exception as e:
-            logger.error(f"Ошибка проверки вебхука: {e}")
-            await asyncio.sleep(60)
 
 def find_image(name: str):
     """Ищет картинку для МФО/ПТС, возвращает путь или None"""
@@ -374,7 +329,6 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                 ])
                 image_path = find_image(mfo_name)
                 if image_path:
-                    # ✅ ИСПРАВЛЕНО: FSInputFile вместо open()
                     msg = await bot.send_photo(chat_id, FSInputFile(image_path),
                         caption=f"Получите займ в {mfo_name.replace('pts_', '').capitalize()}",
                         reply_markup=kb)
@@ -392,7 +346,6 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
                 ])
                 image_path = find_image(mfo_name)
                 if image_path:
-                    # ✅ ИСПРАВЛЕНО: FSInputFile вместо open()
                     msg = await bot.send_photo(chat_id, FSInputFile(image_path),
                         caption=f"Получите займ в {mfo_info[mfo_name][0]}",
                         reply_markup=kb)
@@ -533,7 +486,7 @@ async def send_user_stats(message: types.Message, command: CommandObject):
 # ─── Напоминания и pending events ─────────────────────────────────────────────
 
 async def send_reminders():
-    error_count = 0
+    """Фоновая задача: проверяет и рассылает напоминания каждые 6 часов"""
     while True:
         try:
             users = get_users_for_reminder()
@@ -549,18 +502,13 @@ async def send_reminders():
                         mark_reminder_sent(user['user_id'], num)
                     except Exception as e:
                         logger.error(f"Ошибка напоминания {day_key} для {user['user_id']}: {e}")
-            error_count = 0
-            await asyncio.sleep(6 * 3600)
         except Exception as e:
-            error_count += 1
             logger.error(f"Error in send_reminders: {e}")
-            if error_count >= 3:
-                await setup_webhook()
-                error_count = 0
-            await asyncio.sleep(300)
+        await asyncio.sleep(6 * 3600)
 
 
 async def process_pending_events():
+    """Обрабатывает события, которые не были обработаны при предыдущем запуске"""
     for event in get_unprocessed_pending_events():
         try:
             uid = event['user_id']
@@ -573,30 +521,25 @@ async def process_pending_events():
             logger.error(f"Ошибка pending event {event['id']}: {e}")
 
 
-# ─── Запуск ────────────────────────────────────────────────────────────────────
+# ─── Запуск (polling) ──────────────────────────────────────────────────────────
 
-async def on_startup(app):
+async def main():
     create_table()
-    await setup_webhook()
-    asyncio.create_task(check_webhook_health())
-    asyncio.create_task(send_reminders())
+    logger.info("База данных инициализирована")
+
+    # Сбрасываем вебхук на случай, если он был установлен ранее (например, на Render)
+    await bot.delete_webhook(drop_pending_updates=True)
+    logger.info("Вебхук сброшен")
+
+    # Обрабатываем необработанные события прошлого запуска
     await process_pending_events()
 
-async def on_shutdown(app):
-    global bot_is_running
-    bot_is_running = False
-    await bot.delete_webhook()
-    await bot.session.close()
-    logger.info("Webhook удален")
+    # Запускаем фоновую задачу напоминаний
+    asyncio.create_task(send_reminders())
+
+    logger.info("Бот запущен в режиме polling")
+    await dp.start_polling(bot, allowed_updates=["message", "callback_query"])
+
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 10000))
-
-    app = web.Application()
-    app.on_startup.append(on_startup)
-    app.on_shutdown.append(on_shutdown)
-
-    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-    setup_application(app, dp, bot=bot)
-
-    web.run_app(app, host='0.0.0.0', port=port)
+    asyncio.run(main())

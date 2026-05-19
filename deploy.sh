@@ -1,110 +1,53 @@
 #!/bin/bash
+# ────────────────────────────────────────────────────────────
+#  Скрипт деплоя Finance Bot на Ubuntu 24.04 (AEZA VPS)
+#  Запускать от root: bash deploy.sh
+# ────────────────────────────────────────────────────────────
 
-# Цвета для вывода
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+set -e  # Остановить скрипт при любой ошибке
 
-echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   Finance Bot - Автоматическое развертывание на Ubuntu    ║${NC}"
-echo -e "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}\n"
+BOT_DIR="/opt/finance-bot"
+BOT_USER="botuser"
+SERVICE_NAME="finance-bot"
 
-# Проверка прав администратора
-if [[ $EUID -ne 0 ]]; then
-   echo -e "${RED}❌ Этот скрипт должен быть запущен от суперпользователя (sudo)${NC}"
-   exit 1
-fi
+echo "=== [1/7] Обновляем систему ==="
+apt update && apt upgrade -y
 
-# Обновление системы
-echo -e "${YELLOW}📦 Шаг 1/6: Обновление системы...${NC}"
-apt update
-apt install -y curl wget git build-essential libssl-dev libffi-dev python3-dev
+echo "=== [2/7] Устанавливаем Python 3.11 и зависимости ==="
+apt install -y python3.11 python3.11-venv python3.11-dev python3-pip git
 
-# Установка Python 3.11
-echo -e "${YELLOW}🐍 Шаг 2/6: Установка Python 3.11...${NC}"
-apt install -y python3.11 python3.11-venv python3-pip
+echo "=== [3/7] Создаём системного пользователя для бота ==="
+id -u $BOT_USER &>/dev/null || useradd -r -s /bin/false -d $BOT_DIR $BOT_USER
 
-# Проверка Python
-if ! command -v python3.11 &> /dev/null; then
-    echo -e "${RED}❌ Python 3.11 не установлен${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✅ Python 3.11 установлен${NC}"
+echo "=== [4/7] Создаём рабочую директорию ==="
+mkdir -p $BOT_DIR/images
+cp -r . $BOT_DIR/
+chown -R $BOT_USER:$BOT_USER $BOT_DIR
 
-# Создание пользователя для бота
-echo -e "${YELLOW}👤 Шаг 3/6: Создание пользователя finance-bot...${NC}"
-if id "finance-bot" &>/dev/null; then
-    echo -e "${YELLOW}⚠️  Пользователь finance-bot уже существует${NC}"
-else
-    useradd -m -s /bin/bash -d /home/finance-bot finance-bot
-    echo -e "${GREEN}✅ Пользователь finance-bot создан${NC}"
-fi
-
-# Клонирование репозитория
-echo -e "${YELLOW}📥 Шаг 4/6: Клонирование репозитория...${NC}"
-cd /home/finance-bot
-if [ -d "finance-bot" ]; then
-    cd finance-bot
-    git pull
-    echo -e "${GREEN}✅ Репозиторий обновлен${NC}"
-else
-    git clone https://github.com/AntonOpri4nina/finance-bot.git
-    cd finance-bot
-    echo -e "${GREEN}✅ Репозиторий клонирован${NC}"
-fi
-
-# Установка зависимостей
-echo -e "${YELLOW}📚 Шаг 5/6: Установка зависимостей Python...${NC}"
+echo "=== [5/7] Создаём виртуальное окружение и ставим зависимости ==="
+cd $BOT_DIR
 python3.11 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-deactivate
-echo -e "${GREEN}✅ Зависимости установлены${NC}"
+venv/bin/pip install --upgrade pip
+venv/bin/pip install -r requirements.txt
 
-# Установка прав доступа
-chown -R finance-bot:finance-bot /home/finance-bot
-chmod +x /home/finance-bot/finance-bot/bot.py
-
-# Настройка systemd сервиса
-echo -e "${YELLOW}⚙️  Шаг 6/6: Настройка systemd сервиса...${NC}"
-cp /home/finance-bot/finance-bot/finance-bot.service /etc/systemd/system/
+echo "=== [6/7] Копируем systemd-сервис ==="
+cp finance-bot.service /etc/systemd/system/$SERVICE_NAME.service
 systemctl daemon-reload
+systemctl enable $SERVICE_NAME
 
-echo -e "\n${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║               ✅ УСТАНОВКА ЗАВЕРШЕНА!                     ║${NC}"
-echo -e "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}\n"
-
-echo -e "${YELLOW}📝 НЕОБХОДИМЫЕ ДЕЙСТВИЯ:${NC}\n"
-
-echo -e "${BLUE}1️⃣  Отредактируй файл конфигурации:${NC}"
-echo -e "   ${GREEN}nano /home/finance-bot/finance-bot/.env${NC}\n"
-
-echo -e "   Вставь свой API_TOKEN от @BotFather:\n"
-echo -e "   ${GREEN}API_TOKEN=твой_токен_здесь${NC}\n"
-
-echo -e "${BLUE}2️⃣  Сохрани файл (Ctrl+O, Enter, Ctrl+X)${NC}\n"
-
-echo -e "${BLUE}3️⃣  Запусти бот:${NC}"
-echo -e "   ${GREEN}sudo systemctl start finance-bot${NC}\n"
-
-echo -e "${BLUE}4️⃣  Проверь статус:${NC}"
-echo -e "   ${GREEN}sudo systemctl status finance-bot${NC}\n"
-
-echo -e "${BLUE}5️⃣  Просмотри логи:${NC}"
-echo -e "   ${GREEN}sudo journalctl -u finance-bot -f${NC}\n"
-
-echo -e "${YELLOW}📋 ПОЛЕЗНЫЕ КОМАНДЫ:${NC}\n"
-echo -e "   ${GREEN}sudo systemctl restart finance-bot${NC}  - Перезагрузить бот"
-echo -e "   ${GREEN}sudo systemctl stop finance-bot${NC}     - Остановить бот"
-echo -e "   ${GREEN}sudo systemctl enable finance-bot${NC}   - Включить автозапуск\n"
-
-echo -e "${BLUE}📂 Директория бота:${NC}"
-echo -e "   ${GREEN}/home/finance-bot/finance-bot/${NC}\n"
-
-echo -e "${BLUE}📊 База данных:${NC}"
-echo -e "   ${GREEN}/home/finance-bot/finance-bot/stats.db${NC}\n"
-
-echo -e "${GREEN}🎉 Установка успешно завершена!${NC}\n"
+echo ""
+echo "=== [7/7] ГОТОВО! ==="
+echo ""
+echo "Следующие шаги:"
+echo "  1. Создайте файл .env:"
+echo "     cp $BOT_DIR/.env.example $BOT_DIR/.env"
+echo "     nano $BOT_DIR/.env"
+echo ""
+echo "  2. Запустите бота:"
+echo "     systemctl start $SERVICE_NAME"
+echo ""
+echo "  3. Проверьте статус:"
+echo "     systemctl status $SERVICE_NAME"
+echo ""
+echo "  4. Смотреть логи в реальном времени:"
+echo "     journalctl -u $SERVICE_NAME -f"
