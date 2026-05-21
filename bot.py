@@ -126,7 +126,7 @@ async def cmd_start(message: types.Message, command: CommandObject, state: FSMCo
         source = command.args if command.args else 'direct'
         add_user_first_interaction(user.id)
         text = (
-            f"Привет, {user.full_name}. Вы находитесь в Финансовом Агрегаторе.\n\n"
+            f"Доброго времени суток, {user.full_name}. Вы находитесь в Финансовом Агрегаторе.\n\n"
             "Мы собрали для вас лучшие финансовые решения с наиболее выгодными условиями, "
             "чтобы помочь вам в важных моментах. В нашем ассортименте:\n\n"
             "🔍 Займы от МФО без залога — быстро и удобно.\n"
