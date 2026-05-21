@@ -402,7 +402,7 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
         elif data == 'back_to_start':
             await delete_old_messages()
             msg = await bot.send_message(chat_id,
-                f"Привет, {callback_query.from_user.full_name}! Вы находитесь в Финансовом Агрегаторе.\n\n"
+                f"Здравствуйте, {callback_query.from_user.full_name}! Вы находитесь в Финансовом Агрегаторе.\n\n"
                 "- Займы от МФО без залога — быстро и удобно\n"
                 "- Займы под залог авто или недвижимости\n"
                 "- Финансовые инструменты с оптимальными условиями",
